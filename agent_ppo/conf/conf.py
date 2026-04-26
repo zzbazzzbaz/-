@@ -13,12 +13,12 @@ Configuration for Robot Vacuum PPO agent.
 
 class Config:
 
-    # Feature dimensions (69D)
-    # 特征维度（69D）
+    # Feature dimensions (157D)
+    # 特征维度（157D）
     FEATURES = [
-        7 * 7,
-        12,
-        8,
+        11 * 11,  # wider local map view / 更大的局部地图视野
+        28,  # global, charger, NPC, and map-stat features / 全局、充电桩、NPC、地图统计特征
+        8,  # last action one-hot / 上一步动作 one-hot
     ]
     FEATURE_SPLIT_SHAPE = FEATURES
     FEATURE_LEN = sum(FEATURES)

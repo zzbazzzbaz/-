@@ -132,7 +132,14 @@ class EpisodeRunner:
                 final_reward = 0.0
                 if done:
                     fm = self.agent.preprocessor
-                    total_score = env_obs["observation"]["env_info"]["total_score"]
+                    env_info = env_obs["observation"]["env_info"]
+                    extra_info = env_obs.get("extra_info", {})
+                    total_score = env_info.get("total_score", fm.total_score)
+                    remaining_charge = env_info.get("remaining_charge", fm.remaining_charge)
+                    charge_count = env_info.get("charge_count", fm.charge_count)
+                    finished_steps = env_info.get("finished_steps", step)
+                    result_message = extra_info.get("result_message", "")
+                    result_code = extra_info.get("result_code", "")
 
                     if truncated:
                         # Survived to max steps: higher cleaning ratio → more reward
@@ -141,19 +148,31 @@ class EpisodeRunner:
                         final_reward = 2.0 + 8.0 * cleaning_ratio
                         result_str = "WIN"
                     else:
-                        # Battery-depleted episodes are common with short runs; keep
-                        # cleaning progress as the dominant terminal signal.
-                        # 短训中电量耗尽较常见，终局奖励仍以清扫比例为主。
                         cleaning_ratio = fm.dirt_cleaned / max(fm.total_dirt, 1)
-                        final_reward = -1.0 + 6.0 * cleaning_ratio
-                        result_str = "FAIL"
+                        if fm.battery <= 0 or remaining_charge <= 0:
+                            final_reward = -4.0 + 6.0 * cleaning_ratio
+                            result_str = "BATTERY_FAIL"
+                        elif fm.npc_danger or fm.nearest_npc_dist <= 1:
+                            final_reward = -3.0 + 6.0 * cleaning_ratio
+                            result_str = "NPC_FAIL"
+                        else:
+                            final_reward = -2.0 + 6.0 * cleaning_ratio
+                            result_str = "FAIL"
 
                     self.logger.info(
                         f"[GAMEOVER] ep:{self.episode_cnt} steps:{step} "
+                        f"finished_steps:{finished_steps} "
                         f"result:{result_str} final_bonus:{final_reward:.2f} "
                         f"total_reward:{total_reward:.3f} "
                         f"dirt_cleaned:{fm.dirt_cleaned}/{fm.total_dirt} "
-                        f"total_score:{total_score}"
+                        f"total_score:{total_score} "
+                        f"remaining_charge:{remaining_charge} "
+                        f"charge_count:{charge_count} "
+                        f"recharge_steps:{fm.recharge_steps} "
+                        f"nearest_charger:{fm.nearest_charger_range_dist:.1f} "
+                        f"nearest_npc:{fm.nearest_npc_dist:.1f} "
+                        f"result_code:{result_code} "
+                        f"result_message:{result_message}"
                     )
 
                 # Build sample frame
