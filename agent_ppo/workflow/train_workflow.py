@@ -138,19 +138,22 @@ class EpisodeRunner:
                         # Survived to max steps: higher cleaning ratio → more reward
                         # 存活到最大步数：清扫比例越高奖励越多
                         cleaning_ratio = fm.dirt_cleaned / max(fm.total_dirt, 1)
-                        final_reward = 5.0 + 5.0 * cleaning_ratio
+                        final_reward = 2.0 + 8.0 * cleaning_ratio
                         result_str = "WIN"
                     else:
-                        # Early termination (battery depleted or collision): small penalty
-                        # 提前结束（电量耗尽或碰撞）：小惩罚
-                        final_reward = -2.0
+                        # Battery-depleted episodes are common with short runs; keep
+                        # cleaning progress as the dominant terminal signal.
+                        # 短训中电量耗尽较常见，终局奖励仍以清扫比例为主。
+                        cleaning_ratio = fm.dirt_cleaned / max(fm.total_dirt, 1)
+                        final_reward = -1.0 + 6.0 * cleaning_ratio
                         result_str = "FAIL"
 
                     self.logger.info(
                         f"[GAMEOVER] ep:{self.episode_cnt} steps:{step} "
                         f"result:{result_str} final_bonus:{final_reward:.2f} "
                         f"total_reward:{total_reward:.3f} "
-                        f"dirt_cleaned:{fm.dirt_cleaned}/{fm.total_dirt}"
+                        f"dirt_cleaned:{fm.dirt_cleaned}/{fm.total_dirt} "
+                        f"total_score:{total_score}"
                     )
 
                 # Build sample frame

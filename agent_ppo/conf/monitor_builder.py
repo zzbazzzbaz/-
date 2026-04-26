@@ -77,6 +77,26 @@ def build_monitor():
             expr="avg(entropy_loss{})",
         )
         .end_panel()
+        .add_panel(
+            name="近似KL",
+            name_en="approx_kl",
+            type="line",
+        )
+        .add_metric(
+            metrics_name="approx_kl",
+            expr="avg(approx_kl{})",
+        )
+        .end_panel()
+        .add_panel(
+            name="裁剪比例",
+            name_en="clip_fraction",
+            type="line",
+        )
+        .add_metric(
+            metrics_name="clip_fraction",
+            expr="avg(clip_fraction{})",
+        )
+        .end_panel()
         .end_group()
         .build()
     )
