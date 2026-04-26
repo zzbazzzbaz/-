@@ -695,7 +695,8 @@ class Preprocessor:
         # Cleaning reward / 清扫奖励
         cleaned_this_step = max(0, self.dirt_cleaned - self.last_dirt_cleaned)
         cleaned_cells = self.step_cleaned_count if self.step_cleaned_count > 0 else cleaned_this_step
-        cleaning_reward = 0.7 * cleaned_cells
+        cleaning_scale = 0.2 if self.recharge_mode else 0.7
+        cleaning_reward = cleaning_scale * cleaned_cells
 
         # Step penalty / 时间惩罚
         step_penalty = -0.002
@@ -734,7 +735,10 @@ class Preprocessor:
 
         # Encourage covering new passable cells and mildly discourage loops.
         # 鼓励探索新格子，轻微惩罚反复绕圈。
-        exploration_reward = 0.004 if self.is_new_cell else -0.0015 * min(self.current_visit_count, 6)
+        if self.recharge_mode:
+            exploration_reward = 0.0
+        else:
+            exploration_reward = 0.004 if self.is_new_cell else -0.0015 * min(self.current_visit_count, 6)
 
         # Collision/stuck signal: invalid moves waste both step and battery.
         # 撞墙/原地不动会浪费步数和电量。
