@@ -31,6 +31,11 @@ def _signed_norm(v, v_max):
     return float(np.clip(float(v) / float(v_max), -1.0, 1.0))
 
 
+def _as_dict(value):
+    """Return a dict for optional nested observation fields."""
+    return value if isinstance(value, dict) else {}
+
+
 class Preprocessor:
     """Feature preprocessor for Robot Vacuum.
 
@@ -131,13 +136,16 @@ class Preprocessor:
 
         从 env_obs 字典中提取并缓存所有需要的状态量。
         """
-        observation = env_obs["observation"]
-        frame_state = observation.get("frame_state", {})
-        extra_frame_state = env_obs.get("extra_info", {}).get("frame_state", {})
-        env_info = observation.get("env_info", {})
-        hero = frame_state.get("heroes", {})
+        env_obs = _as_dict(env_obs)
+        observation = _as_dict(env_obs.get("observation"))
+        frame_state = _as_dict(observation.get("frame_state"))
+        extra_info = _as_dict(env_obs.get("extra_info"))
+        extra_frame_state = _as_dict(extra_info.get("frame_state"))
+        env_info = _as_dict(observation.get("env_info"))
+        hero = frame_state.get("heroes") or {}
         if isinstance(hero, list):
             hero = hero[0] if hero else {}
+        hero = _as_dict(hero)
 
         self.last_action = int(last_action)
         self.step_no = int(observation.get("step_no", env_info.get("step_no", self.step_no)))
@@ -149,7 +157,7 @@ class Preprocessor:
         self.prev_low_battery = self.low_battery
         self.was_recharge_mode = self.recharge_mode
         self.prev_pos = self.cur_pos if self.has_position_history else None
-        hero_pos = hero.get("pos") or env_info.get("pos") or {"x": self.cur_pos[0], "z": self.cur_pos[1]}
+        hero_pos = _as_dict(hero.get("pos") or env_info.get("pos") or {"x": self.cur_pos[0], "z": self.cur_pos[1]})
         self.cur_pos = (int(hero_pos.get("x", self.cur_pos[0])), int(hero_pos.get("z", self.cur_pos[1])))
         self.has_position_history = True
 
@@ -198,7 +206,8 @@ class Preprocessor:
 
         organs = frame_state.get("organs") or extra_frame_state.get("organs") or []
         npcs = frame_state.get("npcs") or extra_frame_state.get("npcs") or []
-        self.npcs = list(npcs)
+        organs = organs if isinstance(organs, (list, tuple)) else []
+        self.npcs = list(npcs) if isinstance(npcs, (list, tuple)) else []
         self._update_charger_state(hx, hz, organs)
         self._update_npc_state(hx, hz, self.npcs)
         self._update_recharge_mode()

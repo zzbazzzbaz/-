@@ -132,8 +132,12 @@ class EpisodeRunner:
                 final_reward = 0.0
                 if done:
                     fm = self.agent.preprocessor
-                    env_info = env_obs["observation"]["env_info"]
-                    extra_info = env_obs.get("extra_info", {})
+                    observation = env_obs.get("observation") or {}
+                    observation = observation if isinstance(observation, dict) else {}
+                    env_info = observation.get("env_info") or {}
+                    env_info = env_info if isinstance(env_info, dict) else {}
+                    extra_info = env_obs.get("extra_info") or {}
+                    extra_info = extra_info if isinstance(extra_info, dict) else {}
                     total_score = env_info.get("total_score", fm.total_score)
                     remaining_charge = env_info.get("remaining_charge", fm.remaining_charge)
                     charge_count = env_info.get("charge_count", fm.charge_count)
