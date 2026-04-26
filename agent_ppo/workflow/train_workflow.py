@@ -140,15 +140,19 @@ class EpisodeRunner:
                     finished_steps = env_info.get("finished_steps", step)
                     result_message = extra_info.get("result_message", "")
                     result_code = extra_info.get("result_code", "")
+                    cleaning_ratio = fm.dirt_cleaned / max(fm.total_dirt, 1)
+                    score_per_step = total_score / max(finished_steps, 1)
 
                     if truncated:
-                        # Survived to max steps: higher cleaning ratio → more reward
-                        # 存活到最大步数：清扫比例越高奖励越多
-                        cleaning_ratio = fm.dirt_cleaned / max(fm.total_dirt, 1)
-                        final_reward = 2.0 + 8.0 * cleaning_ratio
-                        result_str = "WIN"
+                        if score_per_step < 0.25:
+                            final_reward = -3.0 + 6.0 * cleaning_ratio
+                            result_str = "STALL_TRUNCATED"
+                        else:
+                            # Survived to max steps: higher cleaning ratio → more reward
+                            # 存活到最大步数：清扫比例越高奖励越多
+                            final_reward = 2.0 + 8.0 * cleaning_ratio
+                            result_str = "WIN"
                     else:
-                        cleaning_ratio = fm.dirt_cleaned / max(fm.total_dirt, 1)
                         if fm.battery <= 0 or remaining_charge <= 0:
                             final_reward = -4.0 + 6.0 * cleaning_ratio
                             result_str = "BATTERY_FAIL"
