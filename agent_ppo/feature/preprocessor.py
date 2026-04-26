@@ -603,36 +603,46 @@ class Preprocessor:
         return False
 
     def _filter_recharge_actions(self, legal_action):
-        """Restrict low-battery actions to moves that approach the charger."""
+        """Restrict recharge-mode actions to safe moves toward the charger range."""
         if not self.has_charger:
             return list(legal_action)
 
         hx, hz = self.cur_pos
-        current_dist = max(abs(self.nearest_charger_dx), abs(self.nearest_charger_dz))
+        current_dist = self._min_charger_range_dist(hx, hz)
         scored = []
         for action, (dx, dz) in enumerate(self.ACTION_DIRS):
             if legal_action[action] <= 0:
                 continue
-            next_dx = self.nearest_charger_dx - dx
-            next_dz = self.nearest_charger_dz - dz
-            next_dist = max(abs(next_dx), abs(next_dz))
-            improvement = current_dist - next_dist
+            nx, nz = hx + dx, hz + dz
+            next_dist = self._min_charger_range_dist(nx, nz)
             alignment = dx * self.nearest_charger_dx + dz * self.nearest_charger_dz
-            scored.append((improvement, alignment, action))
+            scored.append((next_dist, alignment, action))
 
         if not scored:
             return list(legal_action)
 
-        best_improvement = max(item[0] for item in scored)
+        # When already inside the charger range, stay inside until recharge mode exits.
+        # 已经在充电区域内时，回充模式退出前不要离开充电区域。
+        if current_dist <= 0.0:
+            stay = [0] * 8
+            for next_dist, _, action in scored:
+                if next_dist <= 0.0:
+                    stay[action] = 1
+            if any(stay):
+                return stay
+
+        best_next_dist = min(item[0] for item in scored)
+        best_alignment = max(alignment for next_dist, alignment, _ in scored if next_dist <= best_next_dist + 0.1)
+
         recharge = [0] * 8
-        if best_improvement > 0:
-            for improvement, _, action in scored:
-                if improvement >= best_improvement - 0.1:
-                    recharge[action] = 1
-        else:
+        for next_dist, alignment, action in scored:
+            if next_dist <= best_next_dist + 0.1 and alignment >= best_alignment - 0.1:
+                recharge[action] = 1
+
+        if not any(recharge):
             best_alignment = max(item[1] for item in scored)
             for _, alignment, action in scored:
-                if alignment >= best_alignment:
+                if alignment >= best_alignment - 0.1:
                     recharge[action] = 1
 
         return recharge if any(recharge) else list(legal_action)
