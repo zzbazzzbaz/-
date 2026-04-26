@@ -1,0 +1,18 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local training outputs and checkpoints
+ckpt/
+*.ckpt
+*.pkl
+
+# Runtime logs and temporary files
+logs/
+*.log
+tmp/
+temp/
+
+# IDE/editor local state
+.idea/
