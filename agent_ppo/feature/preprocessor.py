@@ -114,6 +114,9 @@ class Preprocessor:
         self.nearest_charger_dist = float(self.GRID_SIZE)
         self.nearest_charger_range_dist = float(self.GRID_SIZE)
         self.last_nearest_charger_range_dist = float(self.GRID_SIZE)
+        self.charger_energy_cost = float(self.GRID_SIZE)
+        self.charger_safety_buffer = 0.0
+        self.charger_safety_margin = 0.0
         self.battery_margin = 0.0
         self.has_charger = False
         self.low_battery = False
@@ -252,6 +255,9 @@ class Preprocessor:
         self.nearest_charger_center_dz = 0.0
         self.nearest_charger_dist = float(self.GRID_SIZE)
         self.nearest_charger_range_dist = float(self.GRID_SIZE)
+        self.charger_energy_cost = float(self.GRID_SIZE)
+        self.charger_safety_buffer = 0.0
+        self.charger_safety_margin = 0.0
         self.charger_rects = []
 
         best = None
@@ -278,6 +284,7 @@ class Preprocessor:
 
         if best is None:
             self.battery_margin = float(self.battery)
+            self.charger_safety_margin = float(self.battery)
             return
 
         range_dist, dist, dx, dz, center_dx, center_dz = best
@@ -288,6 +295,7 @@ class Preprocessor:
         self.nearest_charger_center_dz = float(center_dz)
         self.nearest_charger_dist = float(dist)
         self.nearest_charger_range_dist = float(range_dist)
+        self.charger_energy_cost = float(range_dist)
         self.on_charger = range_dist <= 0.0
         self.battery_margin = float(self.battery) - self.nearest_charger_range_dist
 
@@ -344,19 +352,34 @@ class Preprocessor:
 
         if not self.has_charger:
             self.recharge_mode = False
+            self.charger_safety_margin = float(self.battery)
             return
 
-        if self.charge_delta > 0 or (self.on_charger and battery_ratio > 0.85):
+        self.charger_energy_cost = float(max(self.nearest_charger_range_dist, 0.0))
+        self.charger_safety_buffer = self._charger_safety_buffer()
+        self.charger_safety_margin = float(self.battery) - self.charger_energy_cost - self.charger_safety_buffer
+
+        should_recharge = self.charger_safety_margin <= 0.0 or battery_ratio < 0.28
+        safe_to_leave = self.charger_safety_margin > 18.0 and battery_ratio > 0.65
+
+        if self.on_charger and (battery_ratio > 0.85 or safe_to_leave):
             self.recharge_mode = False
-        elif self.battery <= self.nearest_charger_range_dist + 18 or battery_ratio < 0.22:
+        elif should_recharge:
             self.recharge_mode = True
-        elif self.recharge_mode and battery_ratio < 0.85:
+        elif self.recharge_mode and not safe_to_leave:
             self.recharge_mode = True
         else:
             self.recharge_mode = False
 
         if self.recharge_mode:
             self.recharge_steps += 1
+
+    def _charger_safety_buffer(self):
+        # One move roughly costs one charge; reserve extra for detours, local obstacles, and policy noise.
+        base = max(24.0, 0.16 * float(self.battery_max))
+        distance_buffer = min(24.0, 0.25 * float(max(self.nearest_charger_range_dist, 0.0)))
+        obstacle_buffer = 18.0 * float(self.local_obstacle_ratio)
+        return float(np.clip(base + distance_buffer + obstacle_buffer, 24.0, 64.0))
 
     def _min_charger_range_dist(self, x, z):
         if not self.charger_rects:
@@ -701,9 +724,11 @@ class Preprocessor:
             dist_delta = float(
                 np.clip(self.last_nearest_charger_range_dist - self.nearest_charger_range_dist, -4.0, 4.0)
             )
-            charge_reward += 0.04 * dist_delta if dist_delta > 0 else 0.02 * dist_delta
-            if self.battery_margin < 0:
-                charge_reward -= min(0.25, abs(self.battery_margin) / max(self.battery_max, 1))
+            approach_scale = 0.06 if self.charger_safety_margin <= 0 else 0.04
+            retreat_scale = 0.03 if self.charger_safety_margin <= 0 else 0.02
+            charge_reward += approach_scale * dist_delta if dist_delta > 0 else retreat_scale * dist_delta
+            if self.charger_safety_margin < 0:
+                charge_reward -= min(0.35, abs(self.charger_safety_margin) / max(self.battery_max, 1))
         elif self.on_charger and battery_ratio > 0.65:
             charge_reward -= 0.08
 
